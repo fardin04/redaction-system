@@ -4,6 +4,12 @@ import logging
 import sys
 import re
 from typing import Tuple, List
+try:
+    nlp = spacy.load("en_core_web_sm")
+except OSError:
+    import spacy.cli
+    spacy.cli.download("en_core_web_sm")
+    nlp = spacy.load("en_core_web_sm")
 
 # Presidio imports
 try:
@@ -308,5 +314,6 @@ def redact_text(text: str, mode: str = "redact") -> Tuple[str, List, List, str]:
 
     # Highlights generation for UI
     highlights = [f"<{r.entity_type}>" if mode=="redact" else f"[{r.entity_type}]" for r in results]
+
 
     return output_text, highlights, results, highlight_text
