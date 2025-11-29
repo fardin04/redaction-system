@@ -61,17 +61,7 @@ en_core_web_lg/
 en_core_web_sm/
 *.tar.gz
 
-# Data files (don't commit sensitive data)
-*.csv
-*.xlsx
-*.xls
-*.json
-*.pdf
-*.docx
-*.txt
-uploads/
-output/
-data/
+
 
 # Environment variables
 .env
