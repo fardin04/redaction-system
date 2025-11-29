@@ -92,6 +92,14 @@ def highlight_redaction(redacted_str, mode):
     return f"<pre style='white-space:pre-wrap; font-family:inherit'>{highlighted}</pre>"
 
 # --------------------------
+# Helper: Callback for Ground Truth Upload
+# --------------------------
+def update_gt_text():
+    """Forces the text area to update when file is uploaded"""
+    if st.session_state.gt_uploader is not None:
+        st.session_state.acc_gt = st.session_state.gt_uploader.getvalue().decode("utf-8")
+
+# --------------------------
 # Streamlit page config
 # --------------------------
 st.set_page_config(
@@ -141,7 +149,7 @@ tab1, tab2, tab3, tab4 = st.tabs(["🚀 Live Demo", "📂 Batch Processing", "�
 # TAB 1: LIVE REDACTION
 # ==========================
 with tab1:
-    st.header("Live PII Redaction Demo")
+    st.header("Universal PII Redaction Tool")
     st.markdown("Enter text below and watch it get redacted in real-time")
 
     col1, col2 = st.columns(2)
@@ -159,25 +167,24 @@ with tab1:
         with col_btn1:
             if st.button("🔍 Redact Live", type="primary", use_container_width=True):
                 if txt.strip():
-                    # Generate all 3 versions:
-                    # 1. Redact (Empty strings + Smart Spacing)
+                    # Generate versions
                     redacted_text, _, analysis, _ = redact_text(txt, mode="redact")
-                    # 2. Mask (Square brackets [TAG])
                     mask_text, _, _, _ = redact_text(txt, mode="mask")
-                    # 3. Angular (Angular brackets <TAG> for highlights in redact mode)
                     angular_text, _, _, _ = redact_text(txt, mode="tag_angular")
                     
+                    # Store results in Session State
                     st.session_state['result_redacted'] = redacted_text
                     st.session_state['result_mask'] = mask_text
                     st.session_state['result_angular'] = angular_text
                     st.session_state['original'] = txt
-                    st.session_state['analysis'] = analysis
+                    st.session_state['analysis'] = analysis 
                     st.session_state['analysis_count'] = len(analysis)
+
                 else:
                     st.warning("⚠️ Please enter some text first!")
 
         with col_btn2:
-            if st.button("🗑️ Clear", use_container_width=True):
+            if st.button("🗑️ Clear Live", use_container_width=True):
                 for k in ['result_redacted', 'result_mask', 'result_angular', 'original', 'analysis', 'analysis_count']:
                     if k in st.session_state:
                         del st.session_state[k]
@@ -192,17 +199,10 @@ with tab1:
         st.markdown("### 🔐 Redacted Output")
         if 'result_redacted' in st.session_state:
             
-            # --- OUTPUT SWAP LOGIC ---
             if mode_value_tab1 == "redact":
-                # Redact Mode:
-                # Output Box: Clean text (e.g. "My name is .")
-                # Visual Box: Angular Tags (e.g. "My name is <PERSON>.")
                 out_text = st.session_state['result_redacted']
                 vis_text = st.session_state['result_angular']
             else:
-                # Mask Mode:
-                # Output Box: Square Tags (e.g. "My name is [PERSON].")
-                # Visual Box: Square Tags (e.g. "My name is [PERSON].")
                 out_text = st.session_state['result_mask']
                 vis_text = st.session_state['result_mask']
             
@@ -224,31 +224,16 @@ with tab1:
             format_choice = st.selectbox("Download format:", options=["txt", "csv", "xlsx"], index=0)
             if st.button("💾 Download Output", use_container_width=True):
                 if format_choice == "txt":
-                    st.download_button(
-                        label="Download TXT",
-                        data=out_text,
-                        file_name="redaction_output.txt",
-                        mime="text/plain"
-                    )
+                    st.download_button(label="Download TXT", data=out_text, file_name="redaction_output.txt", mime="text/plain")
                 elif format_choice == "csv":
                     csv_bytes = ("text\n" + out_text.replace("\n", "\\n") + "\n").encode("utf-8")
-                    st.download_button(
-                        label="Download CSV",
-                        data=csv_bytes,
-                        file_name="redaction_output.csv",
-                        mime="text/csv"
-                    )
+                    st.download_button(label="Download CSV", data=csv_bytes, file_name="redaction_output.csv", mime="text/csv")
                 elif format_choice == "xlsx":
                     out_df = pd.DataFrame({"text": [out_text]})
                     output = BytesIO()
                     with pd.ExcelWriter(output, engine="openpyxl") as writer:
                         out_df.to_excel(writer, index=False)
-                    st.download_button(
-                        label="Download XLSX",
-                        data=output.getvalue(),
-                        file_name="redaction_output.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
+                    st.download_button(label="Download XLSX", data=output.getvalue(), file_name="redaction_output.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         else:
             st.info("👆 Enter text and click 'Redact Live' to see results")
 
@@ -301,6 +286,7 @@ with tab2:
                 status_text = st.empty()
                 results_redacted = []
                 results_mask = []
+                all_batch_entities = []
 
                 for i, row in df_loaded.iterrows():
                     combined = []
@@ -309,9 +295,17 @@ with tab2:
                             combined.append(str(row[c]))
                     original_text = " ".join(combined)
                     
-                    r_out, _, _, _ = redact_text(original_text, mode="redact")
+                    r_out, _, analysis_res, _ = redact_text(original_text, mode="redact")
                     m_out, _, _, _ = redact_text(original_text, mode="mask")
                     
+                    for r in analysis_res:
+                        all_batch_entities.append({
+                            "Row Index": i,
+                            "Entity Type": r.entity_type,
+                            "Detected Text": original_text[r.start:r.end],
+                            "Score": round(r.score, 2)
+                        })
+
                     results_redacted.append(r_out)
                     results_mask.append(m_out)
                     
@@ -327,20 +321,12 @@ with tab2:
                 df_final['mask_text'] = results_mask
                 
                 st.session_state.batch_df = df_final
+                st.session_state['batch_entities'] = all_batch_entities
 
             if st.session_state.batch_df is not None:
                 st.markdown("### 📋 Results Preview")
+                st.dataframe(st.session_state.batch_df[['original_text', 'redacted_text', 'mask_text']].head(5), use_container_width=True)
                 
-                st.dataframe(
-                    st.session_state.batch_df[['original_text', 'redacted_text', 'mask_text']].head(5),
-                    use_container_width=True,
-                    column_config={
-                        "original_text": st.column_config.TextColumn("Original", width="medium"),
-                        "redacted_text": st.column_config.TextColumn("Redacted (Clean)", width="medium"),
-                        "mask_text": st.column_config.TextColumn("Masked (Tags)", width="medium")
-                    }
-                )
-
                 col_down_left, col_down_right = st.columns([2,3])
                 with col_down_left:
                     file_format = st.selectbox("Choose download format:", options=["csv", "xlsx", "txt", "pdf"])
@@ -354,7 +340,6 @@ with tab2:
                         data_to_download = st.session_state.batch_df.to_csv(index=False).encode('utf-8')
                         file_name = f"redacted_{st.session_state.batch_filename.split('.')[0]}.csv"
                         mime_type = "text/csv"
-                        
                     elif file_format == "xlsx":
                         output = BytesIO()
                         with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -362,7 +347,6 @@ with tab2:
                         data_to_download = output.getvalue()
                         file_name = f"redacted_{st.session_state.batch_filename.split('.')[0]}.xlsx"
                         mime_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        
                     elif file_format == "txt":
                         txt_lines = []
                         for _, r in st.session_state.batch_df.iterrows():
@@ -370,7 +354,6 @@ with tab2:
                         data_to_download = "\n".join(txt_lines)
                         file_name = f"redacted_{st.session_state.batch_filename.split('.')[0]}.txt"
                         mime_type = "text/plain"
-                        
                     elif file_format == "pdf":
                         try:
                             from reportlab.lib.pagesizes import letter
@@ -380,12 +363,7 @@ with tab2:
                             width, height = letter
                             y = height - 40
                             for _, r in st.session_state.batch_df.iterrows():
-                                lines = [
-                                    "ORIGINAL: " + str(r['original_text']),
-                                    "REDACTED: " + str(r['redacted_text']),
-                                    "MASK: " + str(r['mask_text']),
-                                    "-" * 60
-                                ]
+                                lines = ["ORIGINAL: " + str(r['original_text']), "REDACTED: " + str(r['redacted_text']), "MASK: " + str(r['mask_text']), "-" * 60]
                                 for line in lines:
                                     c.drawString(40, y, line[:100].replace('\n', ' '))
                                     y -= 12
@@ -400,13 +378,7 @@ with tab2:
                             st.error("ReportLab not installed")
 
                     if data_to_download:
-                        st.download_button(
-                            label="💾 Download Processed File",
-                            data=data_to_download,
-                            file_name=file_name,
-                            mime=mime_type,
-                            use_container_width=True
-                        )
+                        st.download_button(label="💾 Download Processed File", data=data_to_download, file_name=file_name, mime=mime_type, use_container_width=True)
 
 # ==========================
 # TAB 3: ACCURACY EVALUATION
@@ -414,76 +386,84 @@ with tab2:
 with tab3:
     st.header("Accuracy Evaluation")
     st.markdown("Compare redaction output against ground truth")
-
     st.info("Use this to evaluate redaction quality and fine-tune the system")
+
     col1, col2, col3 = st.columns(3)
 
     with col1:
         st.subheader("📌 Original Text")
-        original = st.text_area("Original text:", height=200)
+        original = st.text_area("Original text:", height=200, key="acc_orig")
+    
     with col2:
         st.subheader("🔐 Redacted Text")
-        redacted = st.text_area("Your redaction:", height=200)
+        redacted = st.text_area("Your redaction:", height=200, key="acc_redact")
+    
     with col3:
-        st.subheader("✅ Ground Truth")
-        ground_truth = st.text_area("Expected redaction:", height=200)
+        st.subheader("🎯 Ground Truth")
+        gt_file = st.file_uploader("Upload Ground Truth (.txt)", type=["txt"], key="gt_uploader", on_change=update_gt_text)
+        ground_truth = st.text_area("Ground truth text:", height=130, key="acc_gt")
 
-    if st.button("📊 Calculate Accuracy", type="primary", use_container_width=True):
-        if original and redacted and ground_truth:
-            results = calculate_accuracy(original, redacted, ground_truth)
-            st.markdown("### 📈 Results")
-            col_m1, col_m2 = st.columns(2)
-            with col_m1:
-                st.metric("Match Accuracy", f"{results['Match Accuracy']}%")
-            with col_m2:
-                st.metric("Content Preservation", f"{results['Content Preservation']}%")
-            avg_score = (results['Match Accuracy'] + results['Content Preservation']) / 2
-            if avg_score >= 90:
-                st.success("✅ Excellent redaction quality!")
-            elif avg_score >= 75:
-                st.info("✓ Good redaction quality")
-            else:
-                st.warning("⚠️ May need adjustment")
+    if st.button("📊 Calculate Accuracy", type="primary"):
+        if not original.strip() or not redacted.strip() or not ground_truth.strip():
+            st.warning("⚠️ Please ensure Original, Redacted, and Ground Truth fields are filled.")
         else:
-            st.warning("⚠️ Please fill in all three text areas")
+            # === FIXED: UNPACK 6 VALUES ===
+            total, correct, missed, precision, recall, f1 = calculate_accuracy(original, redacted, ground_truth)
+
+            colA, colB, colC = st.columns(3)
+            colA.metric("✔️ Correctly Redacted", correct)
+            colB.metric("📌 Total Entities", total)
+            colC.metric("🔎 Missed Entities", missed)
+
+            colA2, colB2, colC2 = st.columns(3)
+            # Use percentage formatting
+            colA2.metric("🎯 Accuracy (Recall)", f"{recall*100:.2f}%")
+            colB2.metric("🎯 Precision", f"{precision*100:.2f}%")
+            colC2.metric("🔥 F1 Score", f"{f1*100:.2f}%")
+
+            st.success("🎉 Accuracy evaluation completed!")
 
 # ==========================
-# TAB 4: ENTITY TABLE (FIXED)
+# TAB 4: ENTITY TABLE
 # ==========================
 with tab4:
-    st.header("Entity Visualization Table")
-    st.markdown("All detected entities from the last Live/Batch run are shown here with exact spans.")
+    st.header("🔎 Detected Entity Manager")
+    st.markdown("View entities detected from your **Live Demo** or **Batch Processing** tasks.")
 
-    analysis = None
-    original_text = ""
+    has_live = 'analysis' in st.session_state and st.session_state['analysis']
+    has_batch = 'batch_entities' in st.session_state and st.session_state['batch_entities']
 
-    # Live Demo priority
-    if 'analysis' in st.session_state and st.session_state['analysis']:
-        analysis = st.session_state['analysis']
-        original_text = st.session_state.get('original', "")
-    # Batch fallback
-    elif 'batch_df' in st.session_state and st.session_state.batch_df is not None:
-        first_row = st.session_state.batch_df.iloc[0]
-        original_text = first_row.get('original_text', "")
-        if original_text:
-            # FIX: Unpack 4 values, keeping only the analysis
-            _, _, analysis, _ = redact_text(original_text, mode="redact")
-
-    if analysis and original_text:
-        rows = []
-        for r in analysis:
-            entity_text = original_text[r.start:r.end] if original_text else "<original not available>"
-            rows.append({
-                "Entity": r.entity_type,
-                "Extracted Text": entity_text,
-                "Start": r.start,
-                "End": r.end,
-                "Score": round(r.score, 2)
-            })
-        df_entities = pd.DataFrame(rows)
-        st.dataframe(df_entities, use_container_width=True)
+    if not has_live and not has_batch:
+        st.info("👋 No entities detected yet. Run a Live or Batch task first.")
+    
     else:
-        st.info("Run a live redaction or batch process first to populate the entity table.")
+        if has_live:
+            st.subheader("⚡ Results from Live Demo")
+            live_rows = []
+            orig_txt = st.session_state.get('original', '')
+            for r in st.session_state['analysis']:
+                live_rows.append({
+                    "Entity Type": r.entity_type,
+                    "Detected Text": orig_txt[r.start:r.end],
+                    "Score": f"{r.score:.2f}",
+                    "Position": f"{r.start}-{r.end}"
+                })
+            df_live = pd.DataFrame(live_rows)
+            st.dataframe(df_live, use_container_width=True)
+            csv_live = df_live.to_csv(index=False).encode('utf-8')
+            st.download_button("📥 Download Live Entities (CSV)", csv_live, "live_entities.csv", "text/csv")
+            st.markdown("---")
+
+        if has_batch:
+            st.subheader("📂 Results from Batch Processing")
+            df_batch = pd.DataFrame(st.session_state['batch_entities'])
+            all_types = df_batch["Entity Type"].unique()
+            selected_types = st.multiselect("Filter by Entity Type", options=all_types, default=all_types)
+            if selected_types:
+                df_filtered = df_batch[df_batch["Entity Type"].isin(selected_types)]
+                st.dataframe(df_filtered, use_container_width=True)
+                csv_batch = df_filtered.to_csv(index=False).encode('utf-8')
+                st.download_button("📥 Download Batch Entities (CSV)", csv_batch, "batch_entities.csv", "text/csv")
 
 # --------------------------
 # Footer
@@ -491,6 +471,6 @@ with tab4:
 st.divider()
 st.markdown("""
 <div style='text-align: center; color: #666; padding: 20px;'>
-    <p><strong>🔒 Universal Redaction Tool V1.0 <br></strong> &copy; 2025 | Developed by Super Syancs Team</p>
+    <p><strong>🔒 Universal Redaction Tool V1.0 <br></strong> &copy; 2025 | Developed by Super Saiyans Team</p>
 </div>
 """, unsafe_allow_html=True)
