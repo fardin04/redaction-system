@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-# 🔒 Universal Redaction Tool
 ## 🔒 Universal Redaction Tool
 
 Comprehensive PII detection and redaction system combining Microsoft Presidio, spaCy NLP, and targeted regex recognizers. This repository provides an interactive Streamlit UI, batch processing utilities, and accuracy evaluation tools for safely removing or masking sensitive information from text and documents.
@@ -152,14 +150,9 @@ Example: to add a strict company customer ID pattern, add a PatternRecognizer wi
 
 ## License
 
-Add your license information here.
 
----
-
-Last updated: November 29, 2025
 =======
 # 🔒 Universal Redaction Tool
-## 🔒 Universal Redaction Tool
 
 Comprehensive PII detection and redaction system combining Microsoft Presidio, spaCy NLP, and targeted regex recognizers. This repository provides an interactive Streamlit UI, batch processing utilities, and accuracy evaluation tools for safely removing or masking sensitive information from text and documents.
 
