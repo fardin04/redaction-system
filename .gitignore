@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Python
 __pycache__/
 *.py[cod]
@@ -24,22 +25,62 @@ share/python-wheels/
 MANIFEST
 
 # Virtual Environment
+=======
+### Python (core)
+__pycache__/
+*.py[cod]
+*$py.class
+
+### Virtual environments
+.venv/
+>>>>>>> dae57f4 (feat: Implement Universal Redaction Tool with accuracy evaluation)
 venv/
 env/
 ENV/
 env.bak/
 venv.bak/
+<<<<<<< HEAD
 
 # Streamlit
 .streamlit/secrets.toml
 .streamlit/config.toml
 
 # IDEs
+=======
+.python-version
+
+### Local environment & secrets
+.env
+.env.*
+!.env.example
+
+### Tests, coverage, and caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+.coverage
+.coverage.*
+htmlcov/
+
+### Jupyter
+.ipynb_checkpoints
+
+### Streamlit
+# Ignore local Streamlit state/secrets; keep optional config if added later
+.streamlit/
+!.streamlit/config.toml
+!.streamlit/config.yaml
+!.streamlit/config.yml
+
+### Editors / IDEs
+>>>>>>> dae57f4 (feat: Implement Universal Redaction Tool with accuracy evaluation)
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+<<<<<<< HEAD
 .DS_Store
 
 # Jupyter Notebook
@@ -80,3 +121,12 @@ desktop.ini
 tmp/
 temp/
 *.tmp
+=======
+
+### OS files
+.DS_Store
+Thumbs.db
+
+### Node (optional if you add Prettier locally)
+node_modules/
+>>>>>>> dae57f4 (feat: Implement Universal Redaction Tool with accuracy evaluation)
